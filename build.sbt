@@ -11,7 +11,7 @@ parallelExecution in Test := false
 libraryDependencies ++= {
   val logbackVersion = "1.1.3"
   val akkaStreamVersion = "1.0"
-  val akkaVersion = "2.4.0-RC1"
+  val akkaVersion = "2.4.1"
   
   Seq(
     "org.slf4j" % "slf4j-api" % "1.7.7",
@@ -25,9 +25,13 @@ libraryDependencies ++= {
     "com.typesafe.akka" %% "akka-actor" % akkaVersion,
     "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
     "com.typesafe.akka" %% "akka-persistence" % akkaVersion,
+    "com.typesafe.akka" %% "akka-persistence-query-experimental" % akkaVersion,
     "org.iq80.leveldb" % "leveldb" % "0.7",
+    "com.typesafe.slick" %% "slick" % "3.1.1",
+    "com.h2database" % "h2" % "1.4.190",
     "org.fusesource.leveldbjni" % "leveldbjni-all" % "1.8",
     "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
+    "org.dmonix.akka" %% "akka-persistence-mock" % "1.1" % "test",
     "org.scalatest" %% "scalatest" % "2.2.5" % "test"
   )
 }

@@ -1,32 +1,42 @@
 package com.example.domain.user
 
-import akka.http.scaladsl.Http
-import akka.actor.{ActorSystem, Props}
+import akka.actor.{ActorSystem, Props, ActorNotFound, ActorRef}
+import akka.stream.{Materializer, ActorMaterializer}
+import akka.stream.scaladsl.Flow
 import akka.event.Logging
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.model.StatusCodes._
 import akka.pattern.ask
-import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import akka.http.scaladsl.model.HttpResponse
+import akka.http.scaladsl.model.{HttpResponse, HttpRequest}
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model.ContentTypes._
-import scala.concurrent.duration._
+import scala.util.{Try, Success, Failure}
 import spray.json.DefaultJsonProtocol
+import spray.json._
 import com.example.domain.user.UserAggregate._
 import com.example.domain.Acknowledged
 import com.example.domain.Error
-import akka.actor.ActorNotFound
+import com.example.persistence.{CreateSchema, FindAllUsers}
 
 object UserRoute {
-  import scala.concurrent.ExecutionContext.Implicits.global
-  import scala.language.postfixOps
-  
-  implicit val system = ActorSystem()
-  implicit val materializer = ActorMaterializer()
-  implicit val timeout: Timeout = 5 seconds
+  def create(implicit system: ActorSystem, materializer: ActorMaterializer, persistence: ActorRef) = 
+    new UserRoute route
+}
 
-  val route = {
+object UserJsonProtocol extends DefaultJsonProtocol {
+  implicit val userFormat = jsonFormat2(User.apply)
+}
+
+class UserRoute(implicit system: ActorSystem, persistence: ActorRef) extends DefaultJsonProtocol {
+  import scala.concurrent.duration._
+  import scala.concurrent.ExecutionContext.Implicits.global
+  import scala.language.postfixOps 
+  import UserJsonProtocol._
+  
+  implicit val timeout: Timeout = 5 seconds  
+  
+  def route(implicit materializer: Materializer) = {
     logRequestResult("eventsourcing-example") {
       pathPrefix("api" / "v1" / "users") {
         path(LongNumber) { id =>
@@ -37,7 +47,7 @@ object UserRoute {
                 .resolveOne
                 .recover {
                   case _: ActorNotFound => 
-                    system.actorOf(Props(new UserAggregate(id.toString)), s"user-$id")
+                    system.actorOf(Props(new UserAggregate(id.toString, persistence)), s"user-$id")
                 }
                 .map {                 
                   _ ? UserEmailUpdate(email) map {
@@ -46,6 +56,16 @@ object UserRoute {
                   }
                 }
             }
+          }
+        } ~
+        pathEnd {
+          get {
+             complete {
+               (persistence ? FindAllUsers).mapTo[Try[Vector[User]]] map { 
+                 case Success(users) => HttpResponse(status = OK, entity = users.toJson.compactPrint)
+                 case Failure(ex) => HttpResponse(status = InternalServerError, entity = ex.getMessage)
+               }
+             }
           }
         }
       }
